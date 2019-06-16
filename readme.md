@@ -88,8 +88,22 @@ It also allows automatic update of Gateway_ID with unique MAC address, in Packet
 configuration file.
 Please refer to the script header for more details.
 
+### 4.2. autoconnect.sh
+This script is to be used when we want to connect our Gateway to Server via WI-FI, it allows to 
+autoconnect to AP (or Hot Spot) once it possible. Need to run it before running main programm and also 
+add profile of AP (or Hot Spot) to /etc/wpa_supplicant/wpa_supplicant.conf in your linux machine.
+
+
 5. Changelog
 -------------
+
+
+### v2.1.1 - 2019-06-16 ###
+
+Poly packet forwarder from now may to save packets which weren't sent to server if server was unreachable (timeout).
+In this case packet forwarder saves packets in static variable array and will send it to server once server will be online - 
+if poly packet forwarder sucseeded to send packet, it will send all not sent packets one after another and then will contuinue 
+his job as usual.
 
 ### v2.1.0 - 2015-06-29 ###
 
