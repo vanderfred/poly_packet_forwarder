@@ -117,6 +117,9 @@ Maintainer: Ruud Vlaming
 #define STATUS_SIZE		328
 #define TX_BUFF_SIZE	((540 * NB_PKT_MAX) + 30 + STATUS_SIZE)
 
+#ifdef COPY_PACKET
+	#define MAX_PACKET_NUMBER 128
+#endif
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE VARIABLES (GLOBAL) ------------------------------------------- */
 
@@ -239,6 +242,12 @@ static char platform[24]    = DISPLAY_PLATFORM;  /* platform definition */
 static char email[40]       = "";                /* used for contact email */
 static char description[64] = "";                /* used for free form description */
 
+/* data buffers for not sent packets */
+static uint8_t not_sent_buff[MAX_PACKET_NUMBER][TX_BUFF_SIZE]; /* buffer to compose the upstream packet which weren't sent */
+static int not_sent_buff_index[MAX_PACKET_NUMBER];
+static int not_sent_cntr = 0;
+static int bOverflowNotSentPackets = 0;
+#endif
 /* -------------------------------------------------------------------------- */
 /* --- MAC OSX Extensions  -------------------------------------------------- */
 
@@ -1498,7 +1507,7 @@ void thread_up(void) {
 	uint8_t buff_up[TX_BUFF_SIZE]; /* buffer to compose the upstream packet */
 	int buff_index;
 	uint8_t buff_ack[32]; /* buffer to receive acknowledges */
-	
+
 	/* protocol variables */
 	uint8_t token_h; /* random token for acknowledgement matching */
 	uint8_t token_l; /* random token for acknowledgement matching */
@@ -1891,17 +1900,38 @@ void thread_up(void) {
 			for (i=0; i<2; ++i) {
 				j = recv(sock_up[ic], (void *)buff_ack, sizeof buff_ack, 0);
 				clock_gettime(CLOCK_MONOTONIC, &recv_time);
+				#ifdef COPY_PACKET
+				printf ("was sent to server, result = %d, number of packets which weren't sent = %d \n", j, not_sent_cntr);
+				#endif
 				if (j == -1) {
 					if (errno == EAGAIN) { /* timeout */
+						#ifdef COPY_PACKET
+						if (i == 1)
+						{
+							printf ("packet wasn't sent, copy this packet to buffer, number of packets in this buffer - %d \n", not_sent_cntr + 1);
+							not_sent_buff_index[not_sent_cntr] = buff_index;
+							for(int i_cntr = 0; i_cntr < buff_index; i_cntr++)
+							{
+								not_sent_buff[not_sent_cntr][i_cntr] = buff_up[i_cntr];
+							}
+							not_sent_cntr++;
+							if(not_sent_cntr >= MAX_PACKET_NUMBER)
+							{
+								printf("the number of not sent packets is greater than max, overflow \n");
+								not_sent_cntr = 0;
+								bOverflowNotSentPackets = 1;
+							}
+						}
+						#endif
 						continue;
 					} else { /* server connection error */
 						break;
 					}
 				} else if ((j < 4) || (buff_ack[0] != PROTOCOL_VERSION) || (buff_ack[3] != PKT_PUSH_ACK)) {
-					//MSG("WARNING: [up] ignored invalid non-ACL packet\n");
+					MSG("WARNING: [up] ignored invalid non-ACL packet\n");
 					continue;
 				} else if ((buff_ack[1] != token_h) || (buff_ack[2] != token_l)) {
-					//MSG("WARNING: [up] ignored out-of sync ACK packet\n");
+					MSG("WARNING: [up] ignored out-of sync ACK packet\n");
 					continue;
 				} else {
 					//TODO: This may generate a lot of logdata, see other todo for a solution.
@@ -1911,6 +1941,26 @@ void thread_up(void) {
 				}
 			}
 			pthread_mutex_unlock(&mx_meas_up);
+
+			#ifdef COPY_PACKET
+			//succesfully sent a packet, try to send packets which weren't sent before 
+			if((not_sent_cntr != 0) && (j >= 4))
+			{
+				while(not_sent_cntr > 0)
+				{
+					not_sent_cntr--;	
+					send(sock_up[ic], (void *)not_sent_buff[not_sent_cntr], not_sent_buff_index[not_sent_cntr], 0);
+					int resp = recv(sock_up[ic], (void *)buff_ack, sizeof buff_ack, 0);
+					clock_gettime(CLOCK_MONOTONIC, &recv_time);
+					if(resp < 4)
+					{
+						printf("still wasn't sent to server\n");
+						not_sent_cntr++;
+					}
+				}
+				
+			}
+			#endif
 		}
 	}
 	MSG("\nINFO: End of upstream thread\n");
