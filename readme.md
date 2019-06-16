@@ -100,7 +100,7 @@ add profile of AP (or Hot Spot) to /etc/wpa_supplicant/wpa_supplicant.conf in yo
 
 ### v2.1.1 - 2019-06-16 ###
 
-Poly packet forwarder from now may to save packets which weren't sent to server if server was unreachable (timeout).
+Poly packet forwarder from now can save packets which weren't sent to server if server was unreachable (timeout).
 In this case packet forwarder saves packets in static variable array and will send it to server once server will be online - 
 if poly packet forwarder sucseeded to send packet, it will send all not sent packets one after another and then will contuinue 
 his job as usual.
