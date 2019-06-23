@@ -1921,6 +1921,10 @@ void thread_up(void) {
 								not_sent_cntr = 0;
 								bOverflowNotSentPackets = 1;
 							}
+							FILE *f;
+							f = fopen("packets.txt", "a+");
+							int written = fwrite(not_sent_buff, sizeof(char), sizeof(not_sent_buff), f);
+							printf("saved to file, %d\n", written);
 						}
 						#endif
 						continue;
